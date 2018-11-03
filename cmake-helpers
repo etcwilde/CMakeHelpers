@@ -7,6 +7,8 @@ import shutil
 import sys
 import os
 
+VERSION = 0.1
+
 
 # Exceptions
 
@@ -92,6 +94,8 @@ def move_main():
     ap = argparse.ArgumentParser()
     ap.add_argument("SOURCE", action=MakePathAbsolute)
     ap.add_argument("DESTINATION", action=MakePathAbsolute)
+    ap.add_argument('--version', action='version',
+                    version="%(prog)s {}".format(VERSION))
     args = ap.parse_args()
     print("Moving build directory", args)
 
@@ -123,6 +127,8 @@ def copy_main():
     ap = argparse.ArgumentParser()
     ap.add_argument("SOURCE", action=MakePathAbsolute)
     ap.add_argument("DESTINATION", action=MakePathAbsolute)
+    ap.add_argument('--version', action='version',
+                    version="%(prog)s {}".format(VERSION))
     args = ap.parse_args()
 
     print("Copying build directory")
@@ -155,13 +161,51 @@ def copy_main():
     return 0
 
 
+def default_main():
+
+    help_string = """<applet> arguments...
+
+cmake-helpers is a multi-call program, using symlink name to define
+which applet should be called.
+
+cmake-cp [-h] [--version] SOURCE DESTINATION
+--------------------------------------------
+Copy SOURCE to DEST.
+
+The SOURCE is the original build directory containing
+'CMakeCache.txt', and DESTINATION is where the build directory will
+be copied to.
+
+After copying, the CMakeCache file will be corrected to reflect the
+new build directory.
+
+
+cmake-mv [-h] [--version] SOURCE DESTINATION
+--------------------------------------------
+Rename SOURCE to DESTINATION.
+
+The SOURCE is the original build directory containing
+'CMakeCache.txt', and DESTINATION is the new location of the build
+directory.
+
+The CMakeCache will be fixed after moving to reflect the new build
+directory location."""
+
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(help_string)
+        return 0
+
+    if "--version" in sys.argv or "-v" in sys.argv:
+        print("{} {}".format(__file__, VERSION))
+        return 0
+
+    print("Must call a valid helper script [" +
+          ", ".join(programs.keys()) + ']', file=sys.stderr)
+    return 1
+
+
 programs = {"cmake-cp": copy_main,
             "cmake-mv": move_main}
 
 scriptname = os.path.basename(__file__)
-if scriptname not in programs:
-    print("Must call a valid helper script [" +
-          ", ".join(programs.keys()) + ']', file=sys.stderr)
-    sys.exit(1)
-
-sys.exit(programs[scriptname]())
+sys.exit(programs.get(scriptname, default_main)())

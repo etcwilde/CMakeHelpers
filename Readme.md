@@ -1,3 +1,5 @@
+# CMakeHelpers 0.1
+
 There are many times that I want to either move a configured cmake
 project, or clone one. CMake expands the relative paths to be in
 relation to the build directory, so simple `mv` will cause the
@@ -6,6 +8,32 @@ CMakeCache to need re-building, losing the desired configuration.
 My goal in the project is to build a small suite of helper tools that
 can assist with copying, moving, and doing simple operations with cmake
 build directories.
+
+# Usage
+
+After moving or copying, run `cmake .` in the new build directory to
+have CMake fix the rest of the build system (either the makefile or the
+ninja.rules).
+
+## cmake-mv
+
+CMake move moves the build directory of a cmake project and fixes the
+paths to point to the new build directory location.
+
+```sh
+usage: cmake-mv [-h] SOURCE DESTINATION
+```
+
+## cmake-cp
+
+CMake copy makes a copy of the build directory pointed at by SOURCE into
+a new build directory, DESTINATION, fixing the build directory location
+in the CMakeCache file to point to the new build directory.
+
+```sh
+usage: cmake-cp [-h] SOURCE DESTINATION
+```
+
 
 # Installation
 
@@ -35,26 +63,6 @@ ln -s /usr/local/src/CMakeHelpers/cmake-helpers cmake-cp
 ln -s /usr/local/src/CMakeHelpers/cmake-helpers cmake-mv
 ```
 
-# Usage
-
-## cmake-mv
-
-CMake move moves the build directory of a cmake project and fixes the
-paths to point to the new build directory location.
-
-```sh
-usage: cmake-mv [-h] SOURCE DESTINATION
-```
-
-## cmake-cp
-
-CMake copy makes a copy of the build directory pointed at by SOURCE into
-a new build directory, DESTINATION, fixing the build directory location
-in the CMakeCache file to point to the new build directory.
-
-```sh
-usage: cmake-cp [-h] SOURCE DESTINATION
-```
 
 # Requirements
 
