@@ -33,10 +33,12 @@ def create_destination(dirname, overwrite=False):
     :overwrite: Overwrite if the directory/file already exists
     """
     # Delete the original if we're allowed to
-    if overwrite and os.path.exists(dirname):
-        shutil.rmtree(dirname)
-    if not os.path.exists(dirname):
-        os.mkdir(dirname)
+    if os.path.exists(dirname):
+        if overwrite:
+            shutil.rmtree(dirname)
+        else:
+            raise FileExistsError(dirname)
+    os.mkdir(dirname)
 
 
 # Main programs
