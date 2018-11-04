@@ -3,17 +3,14 @@
 # Evan Wilde (c) 2018
 
 import argparse
-import shutil
 import sys
 import os
 
+import shutil
 
-# Exceptions
+import cmakehelpers
 
-class IncorrectFileError(Exception):
-    def __init__(self, fname, expected_name):
-        self.name = os.path.basename(expected_name)
-        self.input_name = os.path.basename(fname)
+VERSION = 0.1
 
 
 # Argument actions
@@ -26,78 +23,20 @@ class MakePathAbsolute(argparse.Action):
         setattr(args, self.dest, os.path.abspath(values))
 
 
-# Functions
-
-
-def copy_files(f, t):
-    """
-    Copy all files and directories in f to the t dir
-
-    :f: (from) source file/directory
-    :t: (to) destination file/directory
-    """
-    if not os.path.exists(t):
-        os.mkdir(t)
-    [shutil.copy(os.path.join(f, p), t)
-     if os.path.isfile(os.path.join(f, p))
-     else shutil.copytree(os.path.join(f, p), os.path.join(t, p))
-     for p in os.listdir(f)]
-
-
-def move_files(f, t):
-    """
-    Move all files and directories in f to the t dir
-
-    :f: (from) source file/directory
-    :t: (to) destination file/directory
-    """
-    shutil.move(f, t)
-
-
-def get_cache_name(fname):
-    """
-    Gets the name of the cache if it exists, otherwise will throw an
-    error
-
-    :fname: Could be the build directory, or the name of a file
-    :returns: The absolute path to the CMakeCache
-    """
-    if os.path.isdir(fname):
-        fname = os.path.abspath(fname + '/CMakeCache.txt')
-        if not os.path.exists(fname):
-            raise FileNotFoundError(fname)
-    if os.path.basename(fname) != 'CMakeCache.txt':
-        raise IncorrectFileError(fname, 'CMakeCache.txt')
-    return fname
-
-
-def change_base_dir(olddirname, newdirname, lines):
-    """
-    Replace the old directory with the new directory
-
-    :olddirname: Original build directory name
-    :newdirname: New build directory name
-    :lines: The input lines
-    :returns: The fixed lines
-    """
-    for line in lines:
-        if olddirname in line:
-            line = line.replace(olddirname, newdirname)
-        yield line
-
-
 # Main programs
 
 def move_main():
     ap = argparse.ArgumentParser()
     ap.add_argument("SOURCE", action=MakePathAbsolute)
     ap.add_argument("DESTINATION", action=MakePathAbsolute)
+    ap.add_argument('--version', action='version',
+                    version="%(prog)s {}".format(VERSION))
     args = ap.parse_args()
     print("Moving build directory", args)
 
     try:
-        fname = get_cache_name(args.SOURCE)
-    except IncorrectFileError as e:
+        fname = cmakehelpers.get_cache_name(args.SOURCE)
+    except cmakehelpers.IncorrectFileError as e:
         print('Error: Incorrect file passed' +
               f'"{os.path.basename(e.input_name)}" expected "{e.name}"',
               file=sys.stderr)
@@ -109,10 +48,19 @@ def move_main():
     build_dirname = os.path.dirname(fname)
     # Fix the CMakeCache file
     with open(fname, 'r') as f:
-        lines = change_base_dir(build_dirname,
-                                args.DESTINATION,
-                                (line.rstrip() for line in f))
-        move_files(build_dirname, args.DESTINATION)
+        lines = cmakehelpers.change_base_dir(build_dirname,
+                                             args.DESTINATION,
+                                             [ line.rstrip() for line in f ])
+
+        # TODO: Unify the creation of the destination
+        #       Duplicate from cmake-cp
+
+        # Overwrite if it already exists
+        if os.path.exists(args.DESTINATION):
+            shutil.rmtree(args.DESTINATION)
+        os.mkdir(args.DESTINATION)
+        shutil.move(fname, args.DESTINATION)
+        shutil.rmtree(build_dirname)
         dst_cache = os.path.join(args.DESTINATION, 'CMakeCache.txt')
         with open(dst_cache, 'w') as out_f:
             out_f.write('\n'.join(lines))
@@ -123,13 +71,15 @@ def copy_main():
     ap = argparse.ArgumentParser()
     ap.add_argument("SOURCE", action=MakePathAbsolute)
     ap.add_argument("DESTINATION", action=MakePathAbsolute)
+    ap.add_argument('--version', action='version',
+                    version="%(prog)s {}".format(VERSION))
     args = ap.parse_args()
 
     print("Copying build directory")
 
     try:
-        fname = get_cache_name(args.SOURCE)
-    except IncorrectFileError as e:
+        fname = cmakehelpers.get_cache_name(args.SOURCE)
+    except cmakehelpers.IncorrectFileError as e:
         print('Error: Incorrect file passed' +
               f'"{os.path.basename(e.input_name)}" expected "{e.name}"',
               file=sys.stderr)
@@ -140,13 +90,20 @@ def copy_main():
 
     build_dirname = os.path.dirname(fname)
 
-    copy_files(build_dirname, args.DESTINATION)
+    # TODO: Unify the creation of the destination
+    #       Duplicate from cmake-mv
+
+    # Overwrite if the destination already exists
+    if os.path.exists(args.DESTINATION):
+        shutil.rmtree(args.DESTINATION)
+    os.mkdir(args.DESTINATION)
+    shutil.copy(fname, args.DESTINATION)
 
     # Fix the CMakeCache file
     with open(fname, 'r') as f:
-        lines = change_base_dir(build_dirname,
-                                args.DESTINATION,
-                                (line.rstrip() for line in f))
+        lines = cmakehelpers.change_base_dir(build_dirname,
+                                             args.DESTINATION,
+                                             [ line.rstrip() for line in f ])
 
         dst_cache = os.path.join(args.DESTINATION, 'CMakeCache.txt')
 
@@ -155,13 +112,51 @@ def copy_main():
     return 0
 
 
+def default_main():
+
+    help_string = """<applet> arguments...
+
+cmake-helpers is a multi-call program, using symlink name to define
+which applet should be called.
+
+cmake-cp [-h] [--version] SOURCE DESTINATION
+--------------------------------------------
+Copy SOURCE to DEST.
+
+The SOURCE is the original build directory containing
+'CMakeCache.txt', and DESTINATION is where the build directory will
+be copied to.
+
+After copying, the CMakeCache file will be corrected to reflect the
+new build directory.
+
+
+cmake-mv [-h] [--version] SOURCE DESTINATION
+--------------------------------------------
+Rename SOURCE to DESTINATION.
+
+The SOURCE is the original build directory containing
+'CMakeCache.txt', and DESTINATION is the new location of the build
+directory.
+
+The CMakeCache will be fixed after moving to reflect the new build
+directory location."""
+
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(help_string)
+        return 0
+
+    if "--version" in sys.argv or "-v" in sys.argv:
+        print("{} {}".format(__file__, VERSION))
+        return 0
+
+    print("Must call a valid helper script [" +
+          ", ".join(programs.keys()) + ']', file=sys.stderr)
+    return 1
+
+
 programs = {"cmake-cp": copy_main,
             "cmake-mv": move_main}
 
 scriptname = os.path.basename(__file__)
-if scriptname not in programs:
-    print("Must call a valid helper script [" +
-          ", ".join(programs.keys()) + ']', file=sys.stderr)
-    sys.exit(1)
-
-sys.exit(programs[scriptname]())
+sys.exit(programs.get(scriptname, default_main)())
