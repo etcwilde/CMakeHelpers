@@ -23,6 +23,22 @@ class MakePathAbsolute(argparse.Action):
         setattr(args, self.dest, os.path.abspath(values))
 
 
+# Helper Function
+
+def create_destination(dirname, overwrite=False):
+    """
+    Create a destination directory, optionally overwriting the original
+
+    :dirname: The directory to create
+    :overwrite: Overwrite if the directory/file already exists
+    """
+    # Delete the original if we're allowed to
+    if overwrite and os.path.exists(dirname):
+        shutil.rmtree(dirname)
+    if not os.path.exists(dirname):
+        os.mkdir(dirname)
+
+
 # Main programs
 
 def move_main():
@@ -52,13 +68,8 @@ def move_main():
                                              args.DESTINATION,
                                              [ line.rstrip() for line in f ])
 
-        # TODO: Unify the creation of the destination
-        #       Duplicate from cmake-cp
-
         # Overwrite if it already exists
-        if os.path.exists(args.DESTINATION):
-            shutil.rmtree(args.DESTINATION)
-        os.mkdir(args.DESTINATION)
+        create_destination(args.DESTINATION, True)
         shutil.move(fname, args.DESTINATION)
         shutil.rmtree(build_dirname)
         dst_cache = os.path.join(args.DESTINATION, 'CMakeCache.txt')
@@ -90,13 +101,8 @@ def copy_main():
 
     build_dirname = os.path.dirname(fname)
 
-    # TODO: Unify the creation of the destination
-    #       Duplicate from cmake-mv
-
     # Overwrite if the destination already exists
-    if os.path.exists(args.DESTINATION):
-        shutil.rmtree(args.DESTINATION)
-    os.mkdir(args.DESTINATION)
+    create_destination(args.DESTINATION, True)
     shutil.copy(fname, args.DESTINATION)
 
     # Fix the CMakeCache file
