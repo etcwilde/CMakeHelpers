@@ -3,6 +3,7 @@
 import cmakehelpers
 import unittest
 import os
+import shutil
 
 
 class CacheFileNameTest(unittest.TestCase):
@@ -92,6 +93,72 @@ class ChangeBaseDir(unittest.TestCase):
             match_lines = list(match_lines)
             self.assertEqual(lines, match_lines)
             self.assertNotEqual(lines, new_lines)
+
+
+class CreateDestination(unittest.TestCase):
+    """
+    Test the behaviour of the create_destination function
+    """
+
+    dirname = os.path.join(os.path.abspath("tests"), "CreateDestination")
+
+    def cleanup(self):
+        """
+        Setup a directory structure
+
+        Should make a directory in tests called "CreateDestination"
+        """
+        if os.path.exists(self.dirname):
+            shutil.rmtree(self.dirname)
+        os.mkdir(self.dirname)
+
+    def test_exists(self):
+        """
+        Test the behaviour of create_destination when the test directory
+        exists
+        """
+        self.cleanup()
+
+        # Add something to the directory
+        with open(os.path.join(self.dirname, "tmpfile.txt"), "w") as tmp_file:
+            tmp_file.write("Hello to whom it may concern, this is a temp file\n")
+
+        # Default (without overwrite) should throw an error and not delete the file
+        with self.assertRaises(FileExistsError):
+            cmakehelpers.create_destination(self.dirname, False)
+        self.assertTrue(os.path.exists(os.path.join(self.dirname, "tmpfile.txt")))
+
+        # Not overwriting should throw an error and not delete the file
+        with self.assertRaises(FileExistsError):
+            cmakehelpers.create_destination(self.dirname, False)
+        self.assertTrue(os.path.exists(os.path.join(self.dirname, "tmpfile.txt")))
+
+        # With overwriting enabled should delete remove anything that
+        # was already there
+        cmakehelpers.create_destination(self.dirname, True)
+        self.assertFalse(os.path.exists(os.path.join(self.dirname, "tmpfile.txt")))
+
+    def test_not_exits(self):
+        """
+        Test the behaviour of create_destination when the destination
+        doesn't already exist.
+        """
+        self.cleanup()
+
+        # Default case
+        self.assertFalse(os.path.exists(os.path.join(self.dirname, "test1")))
+        cmakehelpers.create_destination(os.path.join(self.dirname, "test1"))
+        self.assertTrue(os.path.exists(os.path.join(self.dirname, "test1")))
+
+        # Not overwrite case
+        self.assertFalse(os.path.exists(os.path.join(self.dirname, "test2")))
+        cmakehelpers.create_destination(os.path.join(self.dirname, "test2"), False)
+        self.assertTrue(os.path.exists(os.path.join(self.dirname, "test2")))
+
+        # Overwrite case
+        self.assertFalse(os.path.exists(os.path.join(self.dirname, "test3")))
+        cmakehelpers.create_destination(os.path.join(self.dirname, "test3"), True)
+        self.assertTrue(os.path.exists(os.path.join(self.dirname, "test3")))
 
 
 if __name__ == "__main__":
