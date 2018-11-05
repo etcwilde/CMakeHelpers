@@ -3,19 +3,14 @@
 # Evan Wilde (c) 2018
 
 import argparse
-import shutil
 import sys
 import os
 
-VERSION = 0.1
+import shutil
 
+import cmakehelpers
 
-# Exceptions
-
-class IncorrectFileError(Exception):
-    def __init__(self, fname, expected_name):
-        self.name = os.path.basename(expected_name)
-        self.input_name = os.path.basename(fname)
+VERSION = 0.2
 
 
 # Argument actions
@@ -26,66 +21,6 @@ class MakePathAbsolute(argparse.Action):
     """
     def __call__(self, parser, args, values, option_string=None):
         setattr(args, self.dest, os.path.abspath(values))
-
-
-# Functions
-
-
-def copy_files(f, t):
-    """
-    Copy all files and directories in f to the t dir
-
-    :f: (from) source file/directory
-    :t: (to) destination file/directory
-    """
-    if not os.path.exists(t):
-        os.mkdir(t)
-    [shutil.copy(os.path.join(f, p), t)
-     if os.path.isfile(os.path.join(f, p))
-     else shutil.copytree(os.path.join(f, p), os.path.join(t, p))
-     for p in os.listdir(f)]
-
-
-def move_files(f, t):
-    """
-    Move all files and directories in f to the t dir
-
-    :f: (from) source file/directory
-    :t: (to) destination file/directory
-    """
-    shutil.move(f, t)
-
-
-def get_cache_name(fname):
-    """
-    Gets the name of the cache if it exists, otherwise will throw an
-    error
-
-    :fname: Could be the build directory, or the name of a file
-    :returns: The absolute path to the CMakeCache
-    """
-    if os.path.isdir(fname):
-        fname = os.path.abspath(fname + '/CMakeCache.txt')
-        if not os.path.exists(fname):
-            raise FileNotFoundError(fname)
-    if os.path.basename(fname) != 'CMakeCache.txt':
-        raise IncorrectFileError(fname, 'CMakeCache.txt')
-    return fname
-
-
-def change_base_dir(olddirname, newdirname, lines):
-    """
-    Replace the old directory with the new directory
-
-    :olddirname: Original build directory name
-    :newdirname: New build directory name
-    :lines: The input lines
-    :returns: The fixed lines
-    """
-    for line in lines:
-        if olddirname in line:
-            line = line.replace(olddirname, newdirname)
-        yield line
 
 
 # Main programs
@@ -100,8 +35,8 @@ def move_main():
     print("Moving build directory", args)
 
     try:
-        fname = get_cache_name(args.SOURCE)
-    except IncorrectFileError as e:
+        fname = cmakehelpers.get_cache_name(args.SOURCE)
+    except cmakehelpers.IncorrectFileError as e:
         print('Error: Incorrect file passed' +
               f'"{os.path.basename(e.input_name)}" expected "{e.name}"',
               file=sys.stderr)
@@ -113,10 +48,14 @@ def move_main():
     build_dirname = os.path.dirname(fname)
     # Fix the CMakeCache file
     with open(fname, 'r') as f:
-        lines = change_base_dir(build_dirname,
-                                args.DESTINATION,
-                                (line.rstrip() for line in f))
-        move_files(build_dirname, args.DESTINATION)
+        lines = cmakehelpers.change_base_dir(build_dirname,
+                                             args.DESTINATION,
+                                             [ line.rstrip() for line in f ])
+
+        # Overwrite if it already exists
+        cmakehelpers.create_destination(args.DESTINATION, True)
+        shutil.move(fname, args.DESTINATION)
+        shutil.rmtree(build_dirname)
         dst_cache = os.path.join(args.DESTINATION, 'CMakeCache.txt')
         with open(dst_cache, 'w') as out_f:
             out_f.write('\n'.join(lines))
@@ -134,8 +73,8 @@ def copy_main():
     print("Copying build directory")
 
     try:
-        fname = get_cache_name(args.SOURCE)
-    except IncorrectFileError as e:
+        fname = cmakehelpers.get_cache_name(args.SOURCE)
+    except cmakehelpers.IncorrectFileError as e:
         print('Error: Incorrect file passed' +
               f'"{os.path.basename(e.input_name)}" expected "{e.name}"',
               file=sys.stderr)
@@ -146,13 +85,15 @@ def copy_main():
 
     build_dirname = os.path.dirname(fname)
 
-    copy_files(build_dirname, args.DESTINATION)
+    # Overwrite if the destination already exists
+    cmakehelpers.create_destination(args.DESTINATION, True)
+    shutil.copy(fname, args.DESTINATION)
 
     # Fix the CMakeCache file
     with open(fname, 'r') as f:
-        lines = change_base_dir(build_dirname,
-                                args.DESTINATION,
-                                (line.rstrip() for line in f))
+        lines = cmakehelpers.change_base_dir(build_dirname,
+                                             args.DESTINATION,
+                                             [ line.rstrip() for line in f ])
 
         dst_cache = os.path.join(args.DESTINATION, 'CMakeCache.txt')
 
