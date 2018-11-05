@@ -1,4 +1,4 @@
-# CMakeHelpers 0.1
+# CMakeHelpers 0.2
 
 There are many times that I want to either move a configured cmake
 project, or clone one. CMake expands the relative paths to be in
